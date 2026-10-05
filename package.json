@@ -7,9 +7,8 @@
   },
   "dependencies": {
     "cors": "latest",
-    "dotenv": "latest",
     "express": "latest",
-    "ffmpeg-static": "latest"
+    "ffmpeg-static": "latest",
     "multer": "latest",
     "replicate": "latest"
   }
