@@ -90,8 +90,54 @@ function assTime(seconds) {
       .padStart(2, "0")}`
   );
 }
+function wrapLyricsText(text) {
+  const cleanText = String(text ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 
+  if (!cleanText) {
+    return "";
+  }
 
+  const words = cleanText.split(" ");
+
+  const lines = [];
+  let currentLine = "";
+
+  const maxCharsPerLine = 32;
+
+  for (const word of words) {
+    const testLine =
+      currentLine.length === 0
+        ? word
+        : `${currentLine} ${word}`;
+
+    if (
+      testLine.length >
+      maxCharsPerLine &&
+      currentLine.length > 0
+    ) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+
+  return lines
+    .slice(0, 3)
+    .map((line) =>
+      line
+        .replaceAll("\\", "\\\\")
+        .replaceAll("{", "\\{")
+        .replaceAll("}", "\\}")
+    )
+    .join("\\N");
+}
 function escapeAssText(text) {
   return String(text ?? "")
     .replaceAll("\\", "\\\\")
@@ -101,7 +147,6 @@ function escapeAssText(text) {
     .trim();
 }
 
-
 function createAssContent(segments) {
   const header = `
 [Script Info]
@@ -109,12 +154,12 @@ Title: Sarvesh Karaoke
 ScriptType: v4.00+
 PlayResX: 1280
 PlayResY: 720
-WrapStyle: 2
+WrapStyle: 0
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,DejaVu Sans,52,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,80,80,70,1
+Style: Default,DejaVu Sans,44,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,100,100,80,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -136,7 +181,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         assTime(segment.end);
 
       const text =
-        escapeAssText(
+        wrapLyricsText(
           segment.text
         );
 
