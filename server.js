@@ -7,6 +7,7 @@ import ffmpegPath from "ffmpeg-static";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
+import youtubedl from "youtube-dl-exec";
 
 const app = express();
 
@@ -267,6 +268,154 @@ app.post("/api/youtube/info", async (req, res) => {
     });
   }
 });
+app.post(
+  "/api/karaoke/youtube",
+  async (req, res) => {
+    let audioPath = null;
+
+    try {
+      const { url } = req.body;
+
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "YouTube URL is required."
+        });
+      }
+
+      const videoId =
+        extractYouTubeVideoId(url);
+
+      if (!videoId) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid YouTube video URL."
+        });
+      }
+
+      const id =
+        crypto.randomUUID();
+
+      audioPath =
+        `/tmp/${id}.mp3`;
+
+      console.log(
+        `Downloading YouTube audio: ${videoId}`
+      );
+
+      await youtubedl(
+        url,
+        {
+          extractAudio: true,
+          audioFormat: "mp3",
+          audioQuality: 0,
+
+          output:
+            `/tmp/${id}.%(ext)s`,
+
+          noPlaylist: true,
+
+          ffmpegLocation:
+            ffmpegPath,
+
+          noWarnings: true
+        },
+        {
+          timeout:
+            10 * 60 * 1000
+        }
+      );
+
+      console.log(
+        "YouTube audio downloaded."
+      );
+
+      const audioBuffer =
+        await fs.readFile(
+          audioPath
+        );
+
+      console.log(
+        "Creating karaoke from YouTube audio..."
+      );
+
+      const output =
+        await replicate.run(
+          DEMUCS_MODEL,
+          {
+            input: {
+              audio:
+                audioBuffer,
+
+              stem:
+                "vocals",
+
+              model_name:
+                "htdemucs",
+
+              shifts: 1,
+
+              overlap:
+                0.25,
+
+              clip_mode:
+                "rescale",
+
+              mp3_bitrate:
+                320,
+
+              float32:
+                false,
+
+              output_format:
+                "mp3"
+            }
+          }
+        );
+
+      if (!output?.other) {
+        throw new Error(
+          "Instrumental track was not returned."
+        );
+      }
+
+      return res.json({
+        success: true,
+
+        originalFileName:
+          `${videoId}.mp3`,
+
+        karaokeUrl:
+          output.other,
+
+        vocalsUrl:
+          output.vocals ?? ""
+      });
+    } catch (error) {
+      console.error(
+        "YouTube karaoke error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+
+        message:
+          "Unable to create karaoke from YouTube.",
+
+        error:
+          error?.message ??
+          "Unknown error"
+      });
+    } finally {
+      await deleteFile(
+        audioPath
+      );
+    }
+  }
+);
 
 function createAssContent(segments) {
   const header = `
