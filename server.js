@@ -90,6 +90,29 @@ function assTime(seconds) {
       .padStart(2, "0")}`
   );
 }
+function extractYouTubeVideoId(url) {
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.hostname === "youtu.be") {
+      return parsed.pathname
+        .replace("/", "")
+        .split("?")[0];
+    }
+
+    if (
+      parsed.hostname === "youtube.com" ||
+      parsed.hostname === "www.youtube.com" ||
+      parsed.hostname === "m.youtube.com"
+    ) {
+      return parsed.searchParams.get("v");
+    }
+
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
 function wrapLyricsText(text) {
   const cleanText = String(text ?? "")
     .replace(/\s+/g, " ")
@@ -146,31 +169,16 @@ function escapeAssText(text) {
     .replace(/\r?\n/g, "\\N")
     .trim();
 }
-function extractYouTubeVideoId(url) {
-  try {
-    const parsed = new URL(url);
-
-    if (parsed.hostname === "youtu.be") {
-      return parsed.pathname.replace("/", "");
-    }
-
-    if (
-      parsed.hostname === "youtube.com" ||
-      parsed.hostname === "www.youtube.com" ||
-      parsed.hostname === "m.youtube.com"
-    ) {
-      return parsed.searchParams.get("v");
-    }
-
-    return null;
-  } catch (_) {
-    return null;
-  }
-}
-
 app.post("/api/youtube/info", async (req, res) => {
   try {
     const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: "YouTube URL is required."
+      });
+    }
 
     const videoId =
       extractYouTubeVideoId(url);
@@ -178,7 +186,8 @@ app.post("/api/youtube/info", async (req, res) => {
     if (!videoId) {
       return res.status(400).json({
         success: false,
-        message: "Invalid YouTube video URL."
+        message:
+          "Please enter a valid YouTube video URL."
       });
     }
 
@@ -186,9 +195,11 @@ app.post("/api/youtube/info", async (req, res) => {
       process.env.YOUTUBE_API_KEY;
 
     if (!apiKey) {
-      throw new Error(
-        "YOUTUBE_API_KEY is not configured."
-      );
+      return res.status(500).json({
+        success: false,
+        message:
+          "YouTube API key is not configured."
+      });
     }
 
     const response = await fetch(
@@ -197,13 +208,29 @@ app.post("/api/youtube/info", async (req, res) => {
 
     const data = await response.json();
 
+    if (!response.ok) {
+      console.error(
+        "YouTube API error:",
+        data
+      );
+
+      return res
+        .status(response.status)
+        .json({
+          success: false,
+          message:
+            "Unable to contact YouTube API."
+        });
+    }
+
     if (
       !data.items ||
       data.items.length === 0
     ) {
       return res.status(404).json({
         success: false,
-        message: "YouTube video not found."
+        message:
+          "YouTube video not found."
       });
     }
 
@@ -213,20 +240,30 @@ app.post("/api/youtube/info", async (req, res) => {
       success: true,
       videoId: video.id,
       title: video.snippet.title,
-      channel: video.snippet.channelTitle,
+      channel:
+        video.snippet.channelTitle,
       thumbnail:
-          video.snippet.thumbnails.high?.url ??
-          video.snippet.thumbnails.medium?.url ??
-          video.snippet.thumbnails.default?.url
+        video.snippet.thumbnails
+            ?.high?.url ??
+        video.snippet.thumbnails
+            ?.medium?.url ??
+        video.snippet.thumbnails
+            ?.default?.url ??
+        ""
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "YouTube info error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
       message:
-          "Unable to load YouTube video.",
-      error: error.message
+        "Unable to load YouTube video.",
+      error:
+        error?.message ??
+        "Unknown error"
     });
   }
 });
@@ -944,10 +981,8 @@ app.use((req, res) => {
     });
 });
 
-
 const port =
-  process.env.PORT ||
-  10000;
+  process.env.PORT || 10000;
 
 app.listen(
   port,
