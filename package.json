@@ -10,6 +10,7 @@
     "express": "latest",
     "ffmpeg-static": "latest",
     "multer": "latest",
-    "replicate": "latest"
+    "replicate": "latest",
+    "youtube-dl-exec": "latest"
   }
 }
