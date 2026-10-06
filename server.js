@@ -146,6 +146,90 @@ function escapeAssText(text) {
     .replace(/\r?\n/g, "\\N")
     .trim();
 }
+function extractYouTubeVideoId(url) {
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.hostname === "youtu.be") {
+      return parsed.pathname.replace("/", "");
+    }
+
+    if (
+      parsed.hostname === "youtube.com" ||
+      parsed.hostname === "www.youtube.com" ||
+      parsed.hostname === "m.youtube.com"
+    ) {
+      return parsed.searchParams.get("v");
+    }
+
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+app.post("/api/youtube/info", async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    const videoId =
+      extractYouTubeVideoId(url);
+
+    if (!videoId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid YouTube video URL."
+      });
+    }
+
+    const apiKey =
+      process.env.YOUTUBE_API_KEY;
+
+    if (!apiKey) {
+      throw new Error(
+        "YOUTUBE_API_KEY is not configured."
+      );
+    }
+
+    const response = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`
+    );
+
+    const data = await response.json();
+
+    if (
+      !data.items ||
+      data.items.length === 0
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: "YouTube video not found."
+      });
+    }
+
+    const video = data.items[0];
+
+    return res.json({
+      success: true,
+      videoId: video.id,
+      title: video.snippet.title,
+      channel: video.snippet.channelTitle,
+      thumbnail:
+          video.snippet.thumbnails.high?.url ??
+          video.snippet.thumbnails.medium?.url ??
+          video.snippet.thumbnails.default?.url
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message:
+          "Unable to load YouTube video.",
+      error: error.message
+    });
+  }
+});
 
 function createAssContent(segments) {
   const header = `
