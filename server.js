@@ -7,7 +7,6 @@ import ffmpegPath from "ffmpeg-static";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
-import youtubedl from "youtube-dl-exec";
 
 const app = express();
 
@@ -268,154 +267,6 @@ app.post("/api/youtube/info", async (req, res) => {
     });
   }
 });
-app.post(
-  "/api/karaoke/youtube",
-  async (req, res) => {
-    let audioPath = null;
-
-    try {
-      const { url } = req.body;
-
-      if (!url) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "YouTube URL is required."
-        });
-      }
-
-      const videoId =
-        extractYouTubeVideoId(url);
-
-      if (!videoId) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid YouTube video URL."
-        });
-      }
-
-      const id =
-        crypto.randomUUID();
-
-      audioPath =
-        `/tmp/${id}.mp3`;
-
-      console.log(
-        `Downloading YouTube audio: ${videoId}`
-      );
-
-      await youtubedl(
-        url,
-        {
-          extractAudio: true,
-          audioFormat: "mp3",
-          audioQuality: 0,
-
-          output:
-            `/tmp/${id}.%(ext)s`,
-
-          noPlaylist: true,
-
-          ffmpegLocation:
-            ffmpegPath,
-
-          noWarnings: true
-        },
-        {
-          timeout:
-            10 * 60 * 1000
-        }
-      );
-
-      console.log(
-        "YouTube audio downloaded."
-      );
-
-      const audioBuffer =
-        await fs.readFile(
-          audioPath
-        );
-
-      console.log(
-        "Creating karaoke from YouTube audio..."
-      );
-
-      const output =
-        await replicate.run(
-          DEMUCS_MODEL,
-          {
-            input: {
-              audio:
-                audioBuffer,
-
-              stem:
-                "vocals",
-
-              model_name:
-                "htdemucs",
-
-              shifts: 1,
-
-              overlap:
-                0.25,
-
-              clip_mode:
-                "rescale",
-
-              mp3_bitrate:
-                320,
-
-              float32:
-                false,
-
-              output_format:
-                "mp3"
-            }
-          }
-        );
-
-      if (!output?.other) {
-        throw new Error(
-          "Instrumental track was not returned."
-        );
-      }
-
-      return res.json({
-        success: true,
-
-        originalFileName:
-          `${videoId}.mp3`,
-
-        karaokeUrl:
-          output.other,
-
-        vocalsUrl:
-          output.vocals ?? ""
-      });
-    } catch (error) {
-      console.error(
-        "YouTube karaoke error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-
-        message:
-          "Unable to create karaoke from YouTube.",
-
-        error:
-          error?.message ??
-          "Unknown error"
-      });
-    } finally {
-      await deleteFile(
-        audioPath
-      );
-    }
-  }
-);
 
 function createAssContent(segments) {
   const header = `
@@ -589,7 +440,222 @@ app.get("/", (req, res) => {
 | Create Karaoke
 |--------------------------------------------------------------------------
 */
+async function resolveYouTubeMedia(
+  youtubeUrl
+) {
+  const resolverUrl =
+    process.env
+      .YOUTUBE_RESOLVER_URL;
 
+  const resolverApiKey =
+    process.env
+      .YOUTUBE_RESOLVER_API_KEY;
+
+  if (!resolverUrl) {
+    throw new Error(
+      "YouTube media resolver is not configured."
+    );
+  }
+
+  const response =
+    await fetch(
+      resolverUrl,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...(resolverApiKey
+            ? {
+                Authorization:
+                  `Bearer ${resolverApiKey}`
+              }
+            : {})
+        },
+
+        body:
+          JSON.stringify({
+            url:
+              youtubeUrl
+          })
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ??
+        "Unable to resolve YouTube media."
+    );
+  }
+
+  const mediaUrl =
+    data?.mediaUrl ??
+    data?.audioUrl ??
+    data?.url;
+
+  if (!mediaUrl) {
+    throw new Error(
+      "Resolver did not return a media URL."
+    );
+  }
+
+  return mediaUrl;
+}
+app.post(
+  "/api/karaoke/youtube",
+  async (req, res) => {
+    try {
+      const {
+        url
+      } = req.body;
+
+      if (
+        !url ||
+        typeof url !== "string"
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "YouTube URL is required."
+          });
+      }
+
+      const videoId =
+        extractYouTubeVideoId(
+          url
+        );
+
+      if (!videoId) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "Invalid YouTube URL."
+          });
+      }
+
+      console.log(
+        `Resolving YouTube media: ${videoId}`
+      );
+
+      const mediaUrl =
+        await resolveYouTubeMedia(
+          url
+        );
+
+      console.log(
+        "Downloading resolved media..."
+      );
+
+      const mediaResponse =
+        await fetch(
+          mediaUrl
+        );
+
+      if (
+        !mediaResponse.ok
+      ) {
+        throw new Error(
+          "Unable to download resolved media."
+        );
+      }
+
+      const arrayBuffer =
+        await mediaResponse
+          .arrayBuffer();
+
+      const audioBuffer =
+        Buffer.from(
+          arrayBuffer
+        );
+
+      console.log(
+        "Creating karaoke from YouTube media..."
+      );
+
+      const output =
+        await replicate.run(
+          DEMUCS_MODEL,
+          {
+            input: {
+              audio:
+                audioBuffer,
+
+              stem:
+                "vocals",
+
+              model_name:
+                "htdemucs",
+
+              shifts: 1,
+
+              overlap:
+                0.25,
+
+              clip_mode:
+                "rescale",
+
+              mp3_bitrate:
+                320,
+
+              float32:
+                false,
+
+              output_format:
+                "mp3"
+            }
+          }
+        );
+
+      if (
+        !output?.other
+      ) {
+        throw new Error(
+          "Instrumental track was not returned."
+        );
+      }
+
+      return res.json({
+        success: true,
+
+        originalFileName:
+          `${videoId}.mp3`,
+
+        karaokeUrl:
+          output.other,
+
+        vocalsUrl:
+          output.vocals ?? ""
+      });
+    } catch (error) {
+      console.error(
+        "YouTube karaoke error:",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          message:
+            "Unable to create karaoke from YouTube.",
+
+          error:
+            error?.message ??
+            "Unknown error"
+        });
+    }
+  }
+);
 app.post(
   "/api/karaoke/create",
   upload.single("file"),
