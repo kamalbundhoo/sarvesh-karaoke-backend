@@ -593,12 +593,12 @@ app.post(
                 "vocals",
 
               model_name:
-                "htdemucs",
+                "htdemucs_ft",
 
-              shifts: 1,
+              shifts: 5,
 
               overlap:
-                0.25,
+                0.5,
 
               clip_mode:
                 "rescale",
@@ -610,7 +610,7 @@ app.post(
                 false,
 
               output_format:
-                "mp3"
+                "wav"
             }
           }
         );
@@ -627,7 +627,7 @@ app.post(
         success: true,
 
         originalFileName:
-          `${videoId}.mp3`,
+          `${videoId}.wav`,
 
         karaokeUrl:
           output.other,
@@ -699,12 +699,12 @@ app.post(
                 "vocals",
 
               model_name:
-                "htdemucs",
+                "htdemucs_ft",
 
-              shifts: 1,
+              shifts: 5,
 
               overlap:
-                0.25,
+                0.5,
 
               clip_mode:
                 "rescale",
@@ -716,7 +716,7 @@ app.post(
                 false,
 
               output_format:
-                "mp3"
+                "wav"
             }
           }
         );
@@ -1096,7 +1096,7 @@ app.post(
         "aac",
 
         "-b:a",
-        "192k",
+        "320k",
 
         "-movflags",
         "+faststart",
