@@ -586,32 +586,16 @@ app.post(
           DEMUCS_MODEL,
           {
             input: {
-              audio:
-                audioBuffer,
-
-              stem:
-                "vocals",
-
-              model_name:
-                "htdemucs_ft",
-
-              shifts: 5,
-
-              overlap:
-                0.5,
-
-              clip_mode:
-                "rescale",
-
-              mp3_bitrate:
-                320,
-
-              float32:
-                false,
-
-              output_format:
-                "wav"
-            }
+  audio: audioBuffer,
+  stem: "vocals",
+  model_name: "htdemucs_ft",
+  shifts: 2,
+  overlap: 0.25,
+  clip_mode: "rescale",
+  mp3_bitrate: 256,
+  float32: false,
+  output_format: "mp3"
+}
           }
         );
 
@@ -691,33 +675,17 @@ app.post(
         await replicate.run(
           DEMUCS_MODEL,
           {
-            input: {
-              audio:
-                audioBuffer,
-
-              stem:
-                "vocals",
-
-              model_name:
-                "htdemucs_ft",
-
-              shifts: 5,
-
-              overlap:
-                0.5,
-
-              clip_mode:
-                "rescale",
-
-              mp3_bitrate:
-                320,
-
-              float32:
-                false,
-
-              output_format:
-                "wav"
-            }
+           input: {
+  audio: audioBuffer,
+  stem: "vocals",
+  model_name: "htdemucs_ft",
+  shifts: 2,
+  overlap: 0.25,
+  clip_mode: "rescale",
+  mp3_bitrate: 256,
+  float32: false,
+  output_format: "mp3"
+}
           }
         );
 
